@@ -3,6 +3,9 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use App\Helpers\JwtAuth;
+use App\Models\Car;
+
 
 class CarController extends Controller
 {
@@ -11,10 +14,22 @@ class CarController extends Controller
      *
      * @return \Illuminate\Http\Response
      */
-    public function index()
-    {
-        echo "Index Carcontroller"; die();
-    }
+    public function index(Request $request){
+        $hash =  $request->header('Authorization', null);
+         $jwtAuth = new JwtAuth();
+         $checkToken = $jwtAuth->checkToken($hash);
+         if($checkToken){
+             $cars = Car::all();
+             return response()->json(array(
+                 'cars'=>$cars,
+                 'status'=>'success'
+             ), 200);
+        }else{
+             echo "Index de CarController No Autenticado"; die();
+         }
+      
+      }
+      
 
     /**
      * Show the form for creating a new resource.
@@ -34,7 +49,59 @@ class CarController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        $hash =  $request->header('Authorization', null);
+        $jwtAuth = new JwtAuth();
+        $checkToken = $jwtAuth->checkToken($hash);
+     
+        if($checkToken){
+            //Recoger los datos por post
+            $json = $request->input('json', null);
+            $params = json_decode($json);
+            $params_array = json_decode($json, true);
+     
+            //Conseguir el usuario identificado
+            $user = $jwtAuth->checkToken($hash, true);
+     
+            //Validación de laravel
+            $request->merge($params_array);
+            try{
+                $validate = $this->validate($request,[
+                    'title' => 'required',
+                    'description' => 'required',
+                    'price' => 'required',
+                    'status' => 'required'
+                ]);
+     
+            }catch (\Illuminate\Validation\ValidationException $e){
+                return $e->getResponse();
+            }
+     
+     
+            //Guardar el coche
+                $car = new Car();
+                $car->user_id = $user->sub;
+                $car->title = $params->title;
+                $car->description = $params->description;
+                $car->price = $params->price;
+                $car->status = $params->status;
+                $car->save();
+     
+                $data = array(
+                    'car'=>$car,
+                    'status' => 'success',
+                    'code' => 200
+                );
+     
+        }else{
+            //Devolver un error
+            $data = array(
+                'message' => 'Login incorrecto',
+                'status' => 'success',
+                'code' => 200
+            );
+        }
+        return response()->json($data, 300);
+     
     }
 
     /**
@@ -43,10 +110,20 @@ class CarController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function show($id)
-    {
-        //
-    }
+    public function show(string $id, Request $request)
+{
+   $hash =  $request->header('Authorization', null);
+   $jwtAuth = new JwtAuth();
+   $checkToken = $jwtAuth->checkToken($hash);
+   if($checkToken){
+       $car = Car::find($id);
+       return response()->json(array('car' => $car, 'status' => 'success'), 200);
+   }else{
+       echo "Index de CarController No Autenticado"; die();
+   }
+  
+}
+
 
     /**
      * Show the form for editing the specified resource.
@@ -66,10 +143,46 @@ class CarController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function update(Request $request, $id)
-    {
-        //
-    }
+    public function update($id, Request $request){
+        $hash =  $request->header('Authorization', null);
+        $jwtAuth = new JwtAuth();
+        $checkToken = $jwtAuth->checkToken($hash);
+     
+        if($checkToken){
+            //Recoger parámetros en post
+            $json = $request->input('json', null);
+            $params = json_decode($json);
+            $params_array = json_decode($json, true);
+     
+            //Validar los datos
+            $validate = \Validator::make($params_array,[
+                'title' => 'required',
+                'description' => 'required',
+                'price' => 'required',
+                'status' => 'required'
+            ]);
+            if($validate->fails()){
+                return response()->json($validate->errors(), 400);
+            }
+     
+            //Actualizar el carro
+            $car = Car::where('id', $id)->update($params_array);
+            $data = array(
+              'car' => $params,
+              'status' => 'success',
+              'codigo' => 200
+            );
+        }else{
+            //Devolver un error
+            $data = array(
+                'message' => 'Login incorrecto',
+                'status' => 'success',
+                'code' => 200
+            );
+        }
+        return response()->json($data, 300);
+     }
+     
 
     /**
      * Remove the specified resource from storage.
@@ -77,10 +190,32 @@ class CarController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function destroy($id)
-    {
-        //
-    }
+    public function destroy($id, Request $request){
+        $hash = $request->header('Authorization', null);
+        $jwtAuth = new JwtAuth();
+        $checkToken = $jwtAuth->checkToken($hash);
+        if($checkToken){
+            //comprobar si existe el registro
+            $car = Car::find($id);
+     
+            //Borrarlo
+            $car->delete();
+            //Devolverlo
+            $data = array(
+                'car' => $car,
+                'status' => 'success',
+                'code' => 200
+            );
+        }else{
+            $data = array(
+            'status' => 'error',
+            'code' => '400',
+            'message' => 'Login Incorrecto !!'
+            );
+        }
+        return response()->json($data, 200);
+     }
+     
 
 
 }
